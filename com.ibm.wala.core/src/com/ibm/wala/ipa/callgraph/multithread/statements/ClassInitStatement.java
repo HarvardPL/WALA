@@ -1,0 +1,95 @@
+package com.ibm.wala.ipa.callgraph.multithread.statements;
+
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+
+import com.ibm.wala.classLoader.IMethod;
+import com.ibm.wala.ipa.callgraph.Context;
+import com.ibm.wala.ipa.callgraph.multithread.analyses.HeapAbstractionFactory;
+import com.ibm.wala.ipa.callgraph.multithread.engine.PointsToAnalysis;
+import com.ibm.wala.ipa.callgraph.multithread.engine.PointsToAnalysis.StmtAndContext;
+import com.ibm.wala.ipa.callgraph.multithread.graph.GraphDelta;
+import com.ibm.wala.ipa.callgraph.multithread.graph.PointsToGraph;
+import com.ibm.wala.ipa.callgraph.multithread.registrar.StatementRegistrar;
+import com.ibm.wala.ipa.callgraph.multithread.registrar.ReferenceVariableFactory.ReferenceVariable;
+import com.ibm.wala.ipa.callgraph.multithread.util.print.PrettyPrinter;
+
+/**
+ * Points-to statement for class initialization
+ */
+public class ClassInitStatement extends PointsToStatement {
+
+    /**
+     * Class initialization methods that might need to be called in the order they need to be called (i.e. element j is
+     * a super class of element j+1)
+     */
+    private final List<IMethod> clinits;
+
+    /**
+     * Create a points-to statement for class initialization
+     * 
+     * @param clinits
+     *            class initialization methods that might need to be called in the order they need to be called (i.e.
+     *            element j is a super class of element j+1)
+     * @param m
+     *            method the instruction triggering the initialization is in
+     */
+    protected ClassInitStatement(List<IMethod> clinits, IMethod m) {
+        super(m);
+        assert !clinits.isEmpty() : "No need for a statment if there are no class inits.";
+        this.clinits = clinits;
+    }
+
+    @Override
+    public GraphDelta process(Context context, HeapAbstractionFactory haf,
+            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
+        boolean added = g.addClassInitializers(clinits);
+        // TODO process exceptions thrown by a clinit
+        // TODO add more precise edges to the call graph for a clinit
+        // Since we are flow insensitive, it is imprecise and unsound to treat the triggering method as the caller since
+        // it may not actually call this init, to be sound we could throw the exceptions in any possible caller, but
+        // this would be very imprecise and would blow up the call graph and points-to graph.
+        // As a compromise we don't do anything here, and use this statement only to trigger the analysis of the
+        // statements in the clinit method, this doesn't blow up the points-to graph, but is unsound.
+        if (PointsToAnalysis.outputLevel >= 2 && added) {
+            for (IMethod m : clinits) {
+                System.err.print("ADDING CLINIT: "
+                        + PrettyPrinter.methodString(m));
+            }
+            System.err.println("\n\tFROM "
+                    + PrettyPrinter.methodString(getMethod()) + " in "
+                    + context);
+        }
+
+        return new GraphDelta(g);
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder("Initialize: [");
+        Iterator<IMethod> iter = clinits.iterator();
+        sb.append(PrettyPrinter.methodString(iter.next()));
+        while (iter.hasNext()) {
+            sb.append(", " + PrettyPrinter.methodString(iter.next()));
+        }
+        sb.append("]");
+        return sb.toString();
+    }
+
+    @Override
+    public void replaceUse(int useNumber, ReferenceVariable newVariable) {
+        throw new UnsupportedOperationException("ClassInitStatement has no uses");
+    }
+
+    @Override
+    public ReferenceVariable getDef() {
+        return null;
+    }
+
+    @Override
+    public List<ReferenceVariable> getUses() {
+        return Collections.emptyList();
+    }
+}

@@ -48,7 +48,19 @@ public class IntStack {
     }
     return state[top];
   }
-
+  
+  /**
+   * @return the ith int from the bottom of the stack
+   */
+  public int get(int i) throws EmptyStackException {
+    if (isEmpty()) {
+      throw new EmptyStackException();
+    }
+    if (i < 0 || i > top) {
+      throw new IndexOutOfBoundsException();
+    }
+    return state[i];
+  }
   /**
    * pop the stack
    * @return the int at the top of the stack
@@ -59,7 +71,7 @@ public class IntStack {
     }
     return state[top--];
   }
-
+  
   /**
    * @return true iff the stack is empty
    */
@@ -67,4 +79,10 @@ public class IntStack {
       return top == -1;
   }
 
+  /**
+   * @return the number of elements in the stack.
+   */
+  public int size() {
+    return top + 1;
+  }
 }
