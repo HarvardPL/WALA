@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IField;
@@ -78,7 +79,7 @@ public class StatementRegistrar {
     /**
      * The total number of statements
      */
-    private int size;
+    private AtomicInteger size = new AtomicInteger(0);
 
     /**
      * String literals that new allocation sites have already been created for
@@ -234,9 +235,9 @@ public class StatementRegistrar {
             replacedVariableMap.put(m, duplicateResults.snd());
             int newSize = newStatements.size();
 
-            removed += (oldSize - newSize);
+            this.removed += (oldSize - newSize);
             this.statementsForMethod.put(m, newStatements);
-            this.size += (newSize - oldSize);
+            this.size.addAndGet(newSize - oldSize);
 
             if (PointsToAnalysis.outputLevel >= 1) {
                 System.err.println("HANDLED: " + PrettyPrinter.methodString(m));
@@ -873,15 +874,15 @@ public class StatementRegistrar {
         }
         assert !ss.contains(s) : "STATEMENT: " + s + " was already added";
         if (ss.add(s)) {
-            this.size++;
+            this.size.incrementAndGet();
         }
         if (stmtListener != null) {
             // let the listener now a statement has been added.
             stmtListener.newStatement(s);
         }
 
-        if ((this.size + StatementRegistrar.removed) % 100000 == 0) {
-            System.err.println("REGISTERED: " + (this.size + StatementRegistrar.removed) + ", removed: "
+        if ((this.size.get() + StatementRegistrar.removed) % 100000 == 0) {
+            System.err.println("REGISTERED: " + (this.size.get() + StatementRegistrar.removed) + ", removed: "
                     + StatementRegistrar.removed + " effective: " + this.size);
             // if (StatementRegistrationPass.PROFILE) {
             // System.err.println("PAUSED HIT ENTER TO CONTINUE: ");
@@ -897,6 +898,8 @@ public class StatementRegistrar {
     /**
      * Get the number of statements in the registrar
      *
+     * This method should not be called concurrently with code that is 
+     * registering statements.
      * @return number of registered statements
      */
     public int size() {
@@ -904,7 +907,7 @@ public class StatementRegistrar {
         for (IMethod m : this.statementsForMethod.keySet()) {
             total += this.statementsForMethod.get(m).size();
         }
-        this.size = total;
+        this.size.set(total);
         return total;
     }
 

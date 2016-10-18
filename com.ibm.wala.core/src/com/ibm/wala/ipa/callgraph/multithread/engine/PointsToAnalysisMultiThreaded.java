@@ -1,10 +1,9 @@
 package com.ibm.wala.ipa.callgraph.multithread.engine;
 
 import java.util.Collections;
-import java.util.ConcurrentModificationException;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -63,12 +62,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         long startTime = System.currentTimeMillis();
 
 
-        //final ExecutorServiceCounter execService = new ExecutorServiceCounter(Executors.newFixedThreadPool(this.numThreads()));
         final ExecutorServiceCounter execService = new ExecutorServiceCounter(new ForkJoinPool(this.numThreads()));
-        //        final ExecutorServiceCounter execService = new ExecutorServiceCounter(new ForkJoinPool(this.numThreads(),
-        //                                                                                               ForkJoinPool.defaultForkJoinWorkerThreadFactory,
-        //                                                                                               null,
-        //                                                                                               true));
 
         DependencyRecorder depRecorder = new DependencyRecorder() {
 
@@ -188,7 +182,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
     class ExecutorServiceCounter {
         public PointsToGraph g;
         public StatementRegistrar registrar;
-        private ExecutorService exec;
+        private ForkJoinPool exec;
 
         /**
          * The number of tasks currently to be executed
@@ -201,7 +195,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         private AtomicLong totalTasksNoDelta;
         private AtomicLong totalTasksWithDelta;
 
-        public ExecutorServiceCounter(ExecutorService exec) {
+        public ExecutorServiceCounter(ForkJoinPool exec) {
             this.exec = exec;
             this.numTasks = new AtomicLong(0);
             this.totalTasksNoDelta = new AtomicLong(0);
@@ -241,7 +235,13 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             else {
                 this.totalTasksWithDelta.incrementAndGet();
             }
-            exec.execute(new RunnableStmtAndContext(sac, delta));
+            RunnableStmtAndContext sactask = new RunnableStmtAndContext(sac, delta);
+            if (ForkJoinTask.inForkJoinPool()) {
+                sactask.fork();
+            }
+            else {
+                exec.execute(sactask);
+            }
         }
 
         public void finishedTask() {
@@ -275,7 +275,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             }
         }
 
-        public class RunnableStmtAndContext implements Runnable {
+        public class RunnableStmtAndContext extends ForkJoinTask<Void> {
             private final StmtAndContext sac;
             private final GraphDelta delta;
 
@@ -285,17 +285,27 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             }
 
             @Override
-            public void run() {
+            public Void getRawResult() {
+                return null;
+            }
+
+            @Override
+            protected void setRawResult(Void value) {
+            }
+
+            @Override
+            public boolean exec() {
                 try {
                     processSaC(sac, delta, ExecutorServiceCounter.this);
                     ExecutorServiceCounter.this.finishedTask();
+                    return true;
                 }
-                catch (ConcurrentModificationException e) {
-                    System.err.println("ConcurrentModificationException!!!");
+                catch (Throwable e) {
                     e.printStackTrace();
                     System.exit(0);
                     // No seriously DIE!
                     Runtime.getRuntime().halt(0);
+                    return false;
                 }
             }
         }
@@ -374,11 +384,11 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
     }
 
     public static MutableIntSet makeConcurrentIntSet() {
-        return new ConcurrentMonotonicIntHashSet(16, Runtime.getRuntime().availableProcessors());
+        return new ConcurrentMonotonicIntHashSet(16, MultiThreadAnalysisUtil.numThreads);
     }
 
     public static <T> ConcurrentIntMap<T> makeConcurrentIntMap() {
-        return new ConcurrentMonotonicIntHashMap<>(16, Runtime.getRuntime().availableProcessors());
+        return new ConcurrentMonotonicIntHashMap<>(16, MultiThreadAnalysisUtil.numThreads);
     }
 
     /**

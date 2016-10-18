@@ -98,6 +98,13 @@ public class MultiThreadAnalysisUtil {
     private static final String PRIMORDIAL_FILENAME = "primordial.txt";
 
     /**
+     * Number of threads to use for concurrent data structures
+     *
+     * Initialized to total processors to make sure there is something here during initialization
+     */
+    public static int numThreads = Runtime.getRuntime().availableProcessors();
+
+    /**
      * Methods should be accessed statically, make sure to call {@link MultiThreadAnalysisUtil#init(String, String)} before running
      * an analysis
      */

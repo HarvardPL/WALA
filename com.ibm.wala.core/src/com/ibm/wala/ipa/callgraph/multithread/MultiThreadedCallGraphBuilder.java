@@ -35,7 +35,13 @@ import com.ibm.wala.util.MonitorUtil.IProgressMonitor;
 public class MultiThreadedCallGraphBuilder implements CallGraphBuilder {
   
   private static int OUTPUT_LEVEL = 0;
-  private static final boolean IS_ONLINE = false;
+  
+  /**
+   * Should the registration of pointer statements (which requires 
+   * a pass over the byte code) be done on-demand during the pointer analysis (i.e., online)
+   * or all at the beginning before the multi-threaded analysis starts?
+   */
+  private static final boolean REGISTER_STMTS_LAZILY = false;
 
   private HeapAbstractionFactory haf;
   private boolean useSingleAllocForGenEx = false;
@@ -59,7 +65,7 @@ public class MultiThreadedCallGraphBuilder implements CallGraphBuilder {
     PointsToGraph g;
     StatementRegistrar registrar;
     StatementFactory factory = new StatementFactory();
-    if (IS_ONLINE) {
+    if (REGISTER_STMTS_LAZILY) {
         registrar = new StatementRegistrar(factory,
                                            useSingleAllocForGenEx,
                                            useSingleAllocForThrowable,
@@ -81,7 +87,9 @@ public class MultiThreadedCallGraphBuilder implements CallGraphBuilder {
         g = analysis.solve(registrar);
     }
 
-    System.err.println("Registered statements: " + registrar.size());
+    if (OUTPUT_LEVEL >= 1) {
+      System.err.println("Registered statements: " + registrar.size());
+    }
     if (OUTPUT_LEVEL >= 2) {
         for (IMethod m : registrar.getRegisteredMethods()) {
             for (PointsToStatement s : registrar.getStatementsForMethod(m)) {
@@ -89,10 +97,11 @@ public class MultiThreadedCallGraphBuilder implements CallGraphBuilder {
             }
         }
     }
-    //        System.err.println(g.getNodes().size() + " PTG nodes.");
-    System.err.println(g.getCallGraph().getNumberOfNodes() + " CG nodes.");
-    System.err.println(g.clinitCount + " Class initializers.");
-
+    if (OUTPUT_LEVEL >= 1) {
+      //        System.err.println(g.getNodes().size() + " PTG nodes.");
+      System.err.println(g.getCallGraph().getNumberOfNodes() + " CG nodes.");
+      System.err.println(g.clinitCount + " Class initializers.");
+    }
     pta = new MultiThreadedPointerAnalysis(g, registrar, registrar.getAllLocals(), haf, MultiThreadAnalysisUtil.getClassHierarchy());
     return g.getCallGraph();
   }

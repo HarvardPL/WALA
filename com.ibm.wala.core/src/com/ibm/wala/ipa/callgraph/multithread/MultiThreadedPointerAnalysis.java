@@ -39,6 +39,10 @@ import com.ibm.wala.types.TypeReference;
 import com.ibm.wala.util.intset.OrdinalSet;
 import com.ibm.wala.util.intset.OrdinalSetMapping;
 
+/**
+ * A multi-threaded pointer analysis.
+ *
+ */
 public final class MultiThreadedPointerAnalysis implements PointerAnalysis<InstanceKey> {
 
   private final PointsToGraph g;
