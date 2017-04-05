@@ -122,11 +122,12 @@ public class MultiThreadAnalysisUtil {
      */
     public static void initFromObjects(AnalysisOptions options, AnalysisCache cache, IClassHierarchy cha, AnalysisScope scope) {
         
+        MultiThreadAnalysisUtil.options = options;
         MultiThreadAnalysisUtil.cache = cache;
         MultiThreadAnalysisUtil.scope = scope;
         MultiThreadAnalysisUtil.cha = cha;
-        MultiThreadAnalysisUtil.scope = scope;
         MultiThreadAnalysisUtil.outputDirectory = ".";
+        
         
         addEntriesToRootMethod();
         setUpCommonClasses();
